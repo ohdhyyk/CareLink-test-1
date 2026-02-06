@@ -1266,7 +1266,8 @@ const App: React.FC = () => {
         const conn = await api.getConnection(userId);
         if (conn) {
           setConnection(conn);
-          const partnerId = conn.user_id === userId ? conn.partner_id : conn.user_id;
+          // With new 2-row logic, conn.user_id IS the current user
+          const partnerId = conn.partner_id;
           try {
              const partner = await api.getProfile(partnerId);
              if (partner) setPartnerProfile(partner);

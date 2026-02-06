@@ -37,10 +37,12 @@ export const findProfileByUsername = async (username: string) => {
 
 // Connection
 export const getConnection = async (userId: string) => {
+  // With 2-row logic, we can just check where user_id is the current user.
+  // user_id is unique in the connections table.
   const { data, error } = await supabase
     .from('connections')
     .select('*')
-    .or(`user_id.eq.${userId},partner_id.eq.${userId}`)
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (error) throw error;
@@ -48,21 +50,24 @@ export const getConnection = async (userId: string) => {
 };
 
 export const createConnection = async (myId: string, partnerId: string) => {
-  // Sort IDs because of database constraint check (user_id < partner_id)
-  const userId = myId < partnerId ? myId : partnerId;
-  const pId = myId < partnerId ? partnerId : myId;
-
+  // New logic: Insert two rows for bidirectional lookup logic.
+  // The database unique constraint on user_id prevents multiple connections.
   const { data, error } = await supabase
     .from('connections')
-    .insert([{ user_id: userId, partner_id: pId }])
-    .select()
-    .single();
+    .insert([
+      { user_id: myId, partner_id: partnerId },
+      { user_id: partnerId, partner_id: myId }
+    ])
+    .select();
   
   if (error) throw error;
   return data;
 };
 
 export const deleteConnection = async (userId: string) => {
+  // Delete both rows involved in the relationship.
+  // Checking both user_id and partner_id ensures we clean up the bidirectional link
+  // regardless of which user initiates the deletion.
   const { error } = await supabase
     .from('connections')
     .delete()
@@ -121,6 +126,7 @@ export const toggleWishCompletion = async (wishId: string, currentStatus: boolea
 };
 
 export const deleteWish = async (wishId: string) => {
+  // RLS typically ensures users can only delete their own wishes
   const { error } = await supabase.from('wishes').delete().eq('id', wishId);
   if (error) throw error;
 };
@@ -134,7 +140,6 @@ export const getAllProfiles = async () => {
 
 export const deleteAllWishes = async () => {
     // Attempt to delete all. Note: RLS might restrict this if not admin.
-    // Using a not-equal filter to match all rows since delete() requires a filter
     const { error } = await supabase.from('wishes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if(error) throw error;
 }
